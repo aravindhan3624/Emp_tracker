@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b3b8c">
+<title>FieldForce 360</title>
+<link rel="stylesheet" href="vendor/leaflet.css">
+<style>
+  :root {
+    --brand: #0b3b8c; --brand-2: #1d5fd1; --bg: #f2f4f8; --card: #fff; --ink: #142033; --muted: #5d6b82;
+    --line: #e2e7ef; --ok: #15803d; --ok-bg: #e7f6ec; --warn: #b45309; --warn-bg: #fdf3e2; --bad: #b91c1c; --bad-bg: #fde8e8;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); font: 15px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  button { font: inherit; cursor: pointer; }
+  .hidden { display: none !important; }
+  #app { max-width: 480px; margin: 0 auto; min-height: 100%; display: flex; flex-direction: column; position: relative; }
+
+  /* Login */
+  .login { flex: 1; display: flex; flex-direction: column; justify-content: center; padding: 28px 24px; background: linear-gradient(160deg, #0b3b8c, #1d5fd1 60%, #3b82f6); color: #fff; }
+  .logo { display: flex; align-items: center; gap: 12px; margin-bottom: 28px; }
+  .logo-mark { width: 52px; height: 52px; border-radius: 14px; background: #fff; color: var(--brand); display: grid; place-items: center; font-weight: 800; font-size: 20px; }
+  .logo h1 { margin: 0; font-size: 24px; }
+  .logo p { margin: 2px 0 0; opacity: .8; font-size: 13px; }
+  .login label { display: block; font-size: 13px; opacity: .9; margin: 14px 0 6px; }
+  .login input { width: 100%; padding: 13px 14px; border-radius: 10px; border: 0; font: inherit; font-size: 16px; }
+  .login .btn-primary { margin-top: 22px; background: #fff; color: var(--brand); }
+  .login .hint { margin-top: 16px; font-size: 12.5px; opacity: .85; background: rgba(255,255,255,.12); padding: 10px 12px; border-radius: 10px; }
+  .login .err { color: #ffd5d5; font-size: 13px; margin-top: 10px; min-height: 18px; }
+
+  /* Shell */
+  header.top { background: var(--brand); color: #fff; padding: 14px 16px 16px; position: sticky; top: 0; z-index: 500; }
+  header.top .row { display: flex; align-items: center; justify-content: space-between; }
+  header.top h2 { margin: 0; font-size: 17px; }
+  header.top small { opacity: .8; font-size: 12.5px; }
+  .track-pill { margin-top: 10px; display: flex; align-items: center; gap: 8px; font-size: 12.5px; background: rgba(255,255,255,.14); padding: 7px 10px; border-radius: 999px; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: #9ca3af; flex: none; }
+  .dot.on { background: #4ade80; box-shadow: 0 0 0 0 rgba(74,222,128,.7); animation: pulse 1.6s infinite; }
+  @keyframes pulse { 70% { box-shadow: 0 0 0 8px rgba(74,222,128,0); } 100% { box-shadow: 0 0 0 0 rgba(74,222,128,0); } }
+  main { flex: 1; padding: 14px 14px 90px; }
+  .card { background: var(--card); border-radius: 14px; padding: 14px; margin-bottom: 12px; box-shadow: 0 1px 2px rgba(16,24,40,.06); border: 1px solid var(--line); }
+  .card h3 { margin: 0 0 10px; font-size: 15px; }
+  .btn { display: block; width: 100%; padding: 13px; border-radius: 11px; border: 0; font-weight: 600; font-size: 15px; }
+  .btn-primary { background: var(--brand-2); color: #fff; }
+  .btn-ok { background: var(--ok); color: #fff; }
+  .btn-bad { background: #fff; color: var(--bad); border: 1.5px solid #f3b4b4; }
+  .btn-ghost { background: #eef2f8; color: var(--brand); }
+  .btn + .btn { margin-top: 8px; }
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .stat { background: #f6f8fc; border-radius: 10px; padding: 10px; text-align: center; }
+  .stat b { display: block; font-size: 18px; }
+  .stat span { font-size: 11.5px; color: var(--muted); }
+  .bar { height: 8px; background: #e7ebf2; border-radius: 99px; overflow: hidden; margin: 8px 0 4px; }
+  .bar i { display: block; height: 100%; background: linear-gradient(90deg, #16a34a, #22c55e); border-radius: 99px; transition: width .4s; }
+  .muted { color: var(--muted); font-size: 13px; }
+  .map { height: 220px; border-radius: 12px; overflow: hidden; border: 1px solid var(--line); z-index: 1; }
+  .kv { display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; font-size: 13.5px; }
+  .kv dt { color: var(--muted); } .kv dd { margin: 0; text-align: right; font-weight: 500; }
+  .notice { font-size: 12.5px; color: var(--muted); background: #f6f8fc; border-radius: 10px; padding: 10px 12px; border: 1px dashed #cfd7e4; }
+
+  .visit { display: flex; gap: 12px; align-items: flex-start; cursor: pointer; }
+  .visit .ic { width: 40px; height: 40px; border-radius: 10px; display: grid; place-items: center; font-weight: 700; font-size: 13px; flex: none; }
+  .visit .body { flex: 1; min-width: 0; }
+  .visit .name { font-weight: 600; }
+  .visit .addr { font-size: 12.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .visit .meta { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+  .tag { font-size: 11.5px; padding: 2px 8px; border-radius: 99px; background: #eef2f8; color: #334155; font-weight: 500; }
+  .tag.ok { background: var(--ok-bg); color: var(--ok); } .tag.warn { background: var(--warn-bg); color: var(--warn); } .tag.bad { background: var(--bad-bg); color: var(--bad); } .tag.info { background: #e6efff; color: #1d4ed8; }
+  .ic.COLLECTION { background: #e7f6ec; color: #15803d; } .ic.ADDRESS { background: #e6efff; color: #1d4ed8; } .ic.DOCUMENT { background: #f3e8ff; color: #7e22ce; } .ic.NEWLOAN { background: #fdf3e2; color: #b45309; }
+
+  .field { margin-bottom: 12px; }
+  .field label { display: block; font-size: 12.5px; color: var(--muted); margin-bottom: 5px; font-weight: 500; }
+  .field input, .field select, .field textarea { width: 100%; padding: 11px 12px; border: 1px solid #cfd7e4; border-radius: 10px; font: inherit; background: #fff; }
+  .field textarea { min-height: 70px; resize: vertical; }
+  .geo { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 10px; font-size: 13px; margin-bottom: 12px; }
+  .geo.in { background: var(--ok-bg); color: var(--ok); } .geo.out { background: var(--warn-bg); color: var(--warn); }
+  .back { background: none; border: 0; color: #fff; font-size: 15px; padding: 0; display: flex; align-items: center; gap: 6px; }
+
+  nav.tabs { position: fixed; bottom: 0; left: 50%; transform: translateX(-50%); width: 100%; max-width: 480px; background: #fff; border-top: 1px solid var(--line); display: grid; grid-template-columns: repeat(4, 1fr); padding: 6px 0 calc(6px + env(safe-area-inset-bottom)); z-index: 600; }
+  nav.tabs button { background: none; border: 0; padding: 6px 0; font-size: 11.5px; color: var(--muted); display: flex; flex-direction: column; align-items: center; gap: 3px; }
+  nav.tabs button.active { color: var(--brand-2); font-weight: 600; }
+  nav.tabs svg { width: 22px; height: 22px; }
+  .toast { position: fixed; left: 50%; bottom: 84px; transform: translateX(-50%); background: #111827; color: #fff; padding: 10px 16px; border-radius: 10px; font-size: 13.5px; z-index: 1000; max-width: 90%; text-align: center; opacity: 0; transition: opacity .25s; pointer-events: none; }
+  .toast.show { opacity: 1; }
+  .seg { display: grid; grid-template-columns: 1fr 1fr; background: #eef2f8; border-radius: 10px; padding: 3px; }
+  .seg button { border: 0; background: none; padding: 9px; border-radius: 8px; font-size: 13.5px; color: var(--muted); }
+  .seg button.active { background: #fff; color: var(--brand); font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,.08); }
+  .row-between { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+  .coll-row { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--line); font-size: 13.5px; }
+  .coll-row:last-child { border-bottom: 0; }
+  .me-marker { width: 18px; height: 18px; border-radius: 50%; background: #2563eb; border: 3px solid #fff; box-shadow: 0 0 0 2px #2563eb55, 0 1px 4px rgba(0,0,0,.4); }
+  .pin { width: 26px; height: 26px; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); display: grid; place-items: center; border: 2px solid #fff; box-shadow: 0 1px 4px rgba(0,0,0,.35); }
+  .pin span { transform: rotate(45deg); color: #fff; font-size: 11px; font-weight: 700; }
+</style>
+</head>
+<body>
+<div id="app">
+  <!-- LOGIN -->
+  <section id="login" class="login">
+    <div class="logo">
+      <div class="logo-mark">FF</div>
+      <div><h1>FieldForce 360</h1><p>Field workforce for banking &amp; finance</p></div>
+    </div>
+    <form id="loginForm" autocomplete="off">
+      <label for="empId">Employee ID</label>
+      <input id="empId" placeholder="e.g. EMP001" autocapitalize="characters">
+      <label for="pin">PIN</label>
+      <input id="pin" type="password" inputmode="numeric" placeholder="4-digit PIN">
+      <button class="btn btn-primary" type="submit">Sign in</button>
+      <div class="err" id="loginErr"></div>
+    </form>
+    <div class="hint">Demo: <b>EMP001</b> / PIN <b>1234</b>. Location is collected <b>only while you are on duty</b> and is visible to your branch manager.</div>
+  </section>
+
+  <!-- SHELL -->
+  <section id="shell" class="hidden" style="display:flex;flex-direction:column;flex:1">
+    <header class="top">
+      <div class="row">
+        <div id="hdrLeft"><h2 id="hdrTitle">Home</h2><small id="hdrSub"></small></div>
+        <div class="logo-mark" style="width:36px;height:36px;font-size:14px;border-radius:10px" id="hdrAvatar"></div>
+      </div>
+      <div class="track-pill"><span class="dot" id="trackDot"></span><span id="trackText">Off duty — location tracking is off</span></div>
+    </header>
+    <main id="main">
+      <div id="scr-home"></div>
+      <div id="scr-visits" class="hidden"></div>
+      <div id="scr-visit" class="hidden"></div>
+      <div id="scr-coll" class="hidden"></div>
+      <div id="scr-profile" class="hidden"></div>
+    </main>
+    <nav class="tabs">
+      <button data-tab="home" class="active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 10.5 12 3l9 7.5V21h-6v-6H9v6H3z"/></svg>Home</button>
+      <button data-tab="visits"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg>Visits</button>
+      <button data-tab="coll"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="13" rx="2"/><path d="M2 10h20M6 15h4"/></svg>Collections</button>
+      <button data-tab="profile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg>Profile</button>
+    </nav>
+  </section>
+  <div class="toast" id="toast"></div>
+</div>
+<script src="vendor/leaflet.js"></script>
+<script src="js/seed.js"></script>
+<script src="js/store.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

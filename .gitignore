@@ -1,0 +1,16 @@
+node_modules/
+dist/
+*.log
+
+# Android build outputs and machine-specific files
+android/.gradle/
+android/build/
+android/app/build/
+android/capacitor-cordova-android-plugins/build/
+android/local.properties
+android/.idea/
+*.iml
+*.keystore
+*.jks
+
+.claude/settings.local.json
