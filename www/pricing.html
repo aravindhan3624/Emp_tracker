@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FieldForce 360 · Pricing</title>
+<style>
+  :root { --brand: #0b3b8c; --bg: #f5f7fb; --card: #fff; --ink: #142033; --muted: #5d6b82; --line: #e2e7ef; --ok: #15803d; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  .hero { background: var(--brand); color: #fff; text-align: center; padding: 44px 20px 90px; }
+  .hero h1 { margin: 0 0 8px; font-size: clamp(26px, 4vw, 38px); } .hero p { margin: 0 auto; max-width: 620px; opacity: .85; }
+  .nav { position: absolute; top: 14px; right: 18px; display: flex; gap: 14px; } .nav a { color: #fff; font-size: 13px; opacity: .85; }
+  .toggle { display: inline-flex; background: rgba(255,255,255,.15); border-radius: 99px; padding: 4px; margin-top: 22px; }
+  .toggle button { border: 0; background: none; color: #fff; padding: 8px 18px; border-radius: 99px; font: inherit; font-size: 14px; cursor: pointer; }
+  .toggle button.on { background: #fff; color: var(--brand); font-weight: 600; }
+  .wrap { max-width: 1120px; margin: -60px auto 0; padding: 0 16px 60px; }
+  .plans { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 18px; }
+  .plan { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 24px; display: flex; flex-direction: column; position: relative; box-shadow: 0 6px 24px rgba(16,24,40,.06); }
+  .plan.pop { border: 2px solid var(--brand); }
+  .plan .badge { position: absolute; top: -12px; left: 24px; background: var(--brand); color: #fff; font-size: 12px; font-weight: 600; padding: 3px 12px; border-radius: 99px; }
+  .plan h2 { margin: 0; font-size: 19px; } .plan .tl { color: var(--muted); font-size: 13.5px; min-height: 40px; margin: 4px 0 14px; }
+  .price b { font-size: 36px; } .price span { color: var(--muted); font-size: 13.5px; }
+  .was { color: var(--muted); text-decoration: line-through; font-size: 13px; min-height: 20px; }
+  .plan ul { list-style: none; padding: 0; margin: 16px 0 20px; flex: 1; }
+  .plan li { padding: 5px 0; font-size: 14px; display: flex; gap: 8px; } .plan li::before { content: '✓'; color: var(--ok); font-weight: 700; }
+  .plan li.soon { color: var(--muted); } .plan li.soon::before { content: '◷'; color: var(--muted); }
+  .cta { display: block; text-align: center; padding: 11px; border-radius: 10px; background: var(--brand); color: #fff; text-decoration: none; font-weight: 600; border: 0; font: inherit; cursor: pointer; }
+  .plan:not(.pop) .cta { background: #eef2f8; color: var(--brand); }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 24px; margin-top: 22px; }
+  .card h3 { margin: 0 0 14px; }
+  .calc { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; align-items: end; }
+  .calc label { font-size: 13px; color: var(--muted); display: block; } .calc select, .calc input[type=number] { width: 100%; padding: 9px 10px; border: 1px solid #cfd7e4; border-radius: 8px; font: inherit; margin-top: 4px; }
+  .calc input[type=range] { width: 100%; }
+  .total { background: #f0f6ff; border-radius: 12px; padding: 14px 16px; } .total span { font-size: 12.5px; color: var(--muted); } .total b { display: block; font-size: 24px; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { padding: 10px 8px; border-bottom: 1px solid var(--line); text-align: center; } th:first-child, td:first-child { text-align: left; }
+  td.cat { background: #f6f8fc; font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+  .y { color: var(--ok); font-weight: 700; } .n { color: #cbd5e1; }
+  .tbl { overflow-x: auto; }
+  .faq p { margin: 4px 0 14px; color: var(--muted); font-size: 14px; }
+  .muted { color: var(--muted); font-size: 13px; }
+</style>
+</head>
+<body>
+  <div class="hero">
+    <div class="nav"><a href="demo.html">Live demo</a><a href="settings.html">Admin console</a></div>
+    <h1 id="title">Simple pricing for field teams</h1>
+    <p id="sub"></p>
+    <div class="toggle"><button data-b="monthly">Monthly</button><button data-b="annual" class="on">Annual <span id="save"></span></button></div>
+  </div>
+  <div class="wrap">
+    <div class="plans" id="plans"></div>
+    <div class="card"><h3>Cost calculator</h3>
+      <div class="calc">
+        <label>Plan<select id="cPlan"></select></label>
+        <label>Users: <b id="seatsLbl"></b><input type="range" id="cSeats" min="1" max="500" value="25"></label>
+        <div class="total"><span id="tLbl"></span><b id="tVal"></b><span id="tSub"></span></div>
+      </div>
+    </div>
+    <div class="card"><h3>Compare features</h3><div class="tbl"><table id="cmp"></table></div><p class="muted" style="margin-top:10px">◷ = on our roadmap, included in the plan when released.</p></div>
+    <div class="card faq"><h3>Questions</h3>
+      <b>Is employee tracking always on?</b><p>No. Location is collected only between Start Duty and End Duty, during configured working hours, and employees always see when tracking is active. This supports consent and transparency under India's DPDP Act.</p>
+      <b>Do I need GPS hardware?</b><p>No. The app uses the GPS in the employee's Android phone.</p>
+      <b>Can we customise visit forms and workflows?</b><p>Yes. Visit types, outcomes, form fields, geofence radius, working hours and payment modes are all configurable from the admin console.</p>
+      <b id="trialQ"></b><p id="trialA"></p>
+    </div>
+  </div>
+<script src="js/config.js"></script>
+<script>
+(function () {
+  var $ = function (s) { return document.querySelector(s); };
+  var billing = 'annual';
+  function inr(n) { return CONFIG.pricing.currency + Math.round(n).toLocaleString('en-IN'); }
+  function render() {
+    CONFIG.reload(); CONFIG.applyBrand();
+    var pr = CONFIG.pricing, co = CONFIG.cfg.company, mods = CONFIG.MODULES;
+    document.title = co.appName + ' · Pricing';
+    $('#title').textContent = co.appName + ' pricing';
+    $('#sub').textContent = 'Attendance, live GPS tracking, customer visits and collections for field teams. Per user, per month. ' + pr.trialDays + '-day free trial on every plan.';
+    $('#save').textContent = pr.annualDiscountPct ? '· save ' + pr.annualDiscountPct + '%' : '';
+    document.querySelectorAll('.toggle button').forEach(function (b) { b.classList.toggle('on', b.dataset.b === billing); });
+    $('#plans').innerHTML = pr.plans.map(function (p) {
+      var unit = billing === 'annual' ? p.price * (1 - pr.annualDiscountPct / 100) : p.price;
+      var feats = mods.filter(function (m) { return p.modules.indexOf(m.id) >= 0; });
+      return '<div class="plan' + (p.popular ? ' pop' : '') + '">' + (p.popular ? '<div class="badge">Most popular</div>' : '') +
+        '<h2>' + p.name + '</h2><div class="tl">' + (p.tagline || '') + '</div>' +
+        '<div class="was">' + (billing === 'annual' && pr.annualDiscountPct ? inr(p.price) : '') + '</div>' +
+        '<div class="price"><b>' + inr(unit) + '</b> <span>/ user / month</span></div><div class="muted">' + (billing === 'annual' ? 'billed yearly' : 'billed monthly') + ' · min ' + p.minSeats + ' users · + GST</div>' +
+        '<ul>' + feats.map(function (m) { return '<li class="' + (m.status === 'live' ? '' : 'soon') + '">' + m.name + '</li>'; }).join('') + '</ul>' +
+        '<button class="cta" data-pick="' + p.id + '">Start ' + pr.trialDays + '-day trial</button></div>';
+    }).join('');
+    var sel = $('#cPlan'), cur = sel.value;
+    sel.innerHTML = pr.plans.map(function (p) { return '<option value="' + p.id + '">' + p.name + '</option>'; }).join('');
+    sel.value = cur && pr.plans.some(function (p) { return p.id === cur; }) ? cur : (pr.plans.find(function (p) { return p.popular; }) || pr.plans[0]).id;
+    calc();
+    var cats = {}; mods.forEach(function (m) { (cats[m.cat] = cats[m.cat] || []).push(m); });
+    var h = '<thead><tr><th>Feature</th>' + pr.plans.map(function (p) { return '<th>' + p.name + '</th>'; }).join('') + '</tr></thead><tbody>';
+    Object.keys(cats).forEach(function (c) {
+      h += '<tr><td class="cat" colspan="' + (pr.plans.length + 1) + '">' + c + '</td></tr>';
+      cats[c].forEach(function (m) {
+        h += '<tr><td>' + m.name + '<div class="muted">' + m.desc + '</div></td>' + pr.plans.map(function (p) {
+          return '<td>' + (p.modules.indexOf(m.id) >= 0 ? (m.status === 'live' ? '<span class="y">✓</span>' : '<span class="muted">◷</span>') : '<span class="n">—</span>') + '</td>';
+        }).join('') + '</tr>';
+      });
+    });
+    $('#cmp').innerHTML = h + '</tbody>';
+    $('#trialQ').textContent = 'Is there a free trial?';
+    $('#trialA').textContent = 'Yes — ' + pr.trialDays + ' days on any plan, no card required. Annual billing saves ' + pr.annualDiscountPct + '%. Prices exclude ' + pr.gstPct + '% GST.';
+  }
+  function calc() {
+    var seats = Number($('#cSeats').value), q = CONFIG.quote($('#cPlan').value, seats, billing);
+    $('#seatsLbl').textContent = seats;
+    $('#tLbl').textContent = 'Total ' + (billing === 'annual' ? 'per year' : 'per month') + ' incl. ' + CONFIG.pricing.gstPct + '% GST';
+    $('#tVal').textContent = inr(q.total);
+    $('#tSub').textContent = q.seats + ' users × ' + inr(q.unit) + ' × ' + q.months + ' month' + (q.months > 1 ? 's' : '') + (q.seats > seats ? ' (plan minimum ' + q.seats + ')' : '');
+  }
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest('[data-b]'); if (b) { billing = b.dataset.b; render(); }
+    var p = e.target.closest('[data-pick]'); if (p) { $('#cPlan').value = p.dataset.pick; calc(); $('#cPlan').scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+  });
+  $('#cPlan').onchange = calc; $('#cSeats').oninput = calc;
+  window.addEventListener('storage', function (e) { if (e.key === CONFIG.PLANS_KEY || e.key === CONFIG.CFG_KEY) render(); });
+  render();
+})();
+</script>
+</body>
+</html>

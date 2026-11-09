@@ -15,8 +15,13 @@ npm install
 npx cap sync android
 if ($LASTEXITCODE -ne 0) { throw 'cap sync failed' }
 $androidDir = Join-Path $PSScriptRoot 'android'
-$p = Start-Process -FilePath (Join-Path $androidDir 'gradlew.bat') -ArgumentList 'assembleDebug' -WorkingDirectory $androidDir -NoNewWindow -Wait -PassThru
-$code = $p.ExitCode
+# --no-daemon: a lingering Gradle daemon would otherwise keep this script waiting after the build.
+Push-Location $androidDir
+[Environment]::CurrentDirectory = $androidDir   # so gradlew.bat sees the right working folder
+& .\gradlew.bat assembleDebug --no-daemon
+$code = $LASTEXITCODE
+Pop-Location
+[Environment]::CurrentDirectory = $PSScriptRoot
 if ($code -ne 0) { throw "Gradle build failed (exit $code)" }
 $ErrorActionPreference = 'Stop'
 

@@ -61,10 +61,11 @@
 <body>
 <header>
   <div class="mark">FF</div>
-  <div><h1>FieldForce 360 · Manager Dashboard</h1><small id="org"></small></div>
+  <div><h1 id="appName">FieldForce 360 · Manager Dashboard</h1><small id="org"></small></div>
   <div class="sp"></div>
   <span class="live"><i></i> Live · <span id="clock"></span></span>
   <select id="branchSel"><option value="">All branches</option></select>
+  <a href="settings.html" target="_top" style="color:#fff;font-size:13px">⚙ Admin console</a><a href="pricing.html" target="_top" style="color:#fff;font-size:13px">Pricing</a>
   <button id="resetBtn" title="Clear today's demo data">Reset demo</button>
 </header>
 <div class="wrap">
@@ -82,13 +83,14 @@
   </div>
   <div class="card" style="margin-top:14px">
     <div class="tabs" id="tabs">
-      <button data-t="emp" class="active">Employees</button><button data-t="att">Attendance</button><button data-t="vis">Customer visits</button><button data-t="col">Collections</button><button data-t="aud">Audit log</button>
+      <button data-t="emp" class="active">Employees</button><button data-t="att">Attendance</button><button data-t="vis">Customer visits</button><button data-t="col">Collections</button><button data-t="exp">Expenses</button><button data-t="aud">Audit log</button>
       <span style="flex:1"></span><button class="btn" id="exportBtn" style="margin:4px 0">⬇ Export CSV (Excel)</button>
     </div>
     <div class="tbl" id="table"></div>
   </div>
 </div>
 <script src="vendor/leaflet.js"></script>
+<script src="js/config.js"></script>
 <script src="js/seed.js"></script>
 <script src="js/store.js"></script>
 <script src="js/admin.js"></script>

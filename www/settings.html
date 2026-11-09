@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FieldForce 360 · Admin Console</title>
+<style>
+  :root { --brand: #0b3b8c; --bg: #f2f4f8; --card: #fff; --ink: #142033; --muted: #5d6b82; --line: #e2e7ef; --ok: #15803d; --warn: #b45309; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  header { background: var(--brand); color: #fff; padding: 12px 20px; display: flex; align-items: center; gap: 14px; flex-wrap: wrap; position: sticky; top: 0; z-index: 10; }
+  header .mark { width: 34px; height: 34px; border-radius: 9px; background: #fff; color: var(--brand); font-weight: 800; display: grid; place-items: center; }
+  header h1 { font-size: 17px; margin: 0; } header small { opacity: .8; }
+  header a { color: #fff; font-size: 13px; } header .sp { flex: 1; }
+  #saved { font-size: 12.5px; background: rgba(255,255,255,.16); padding: 5px 10px; border-radius: 99px; opacity: 0; transition: opacity .3s; }
+  #saved.show { opacity: 1; }
+  .layout { display: grid; grid-template-columns: 210px minmax(0, 1fr); gap: 18px; max-width: 1200px; margin: 0 auto; padding: 18px 20px 60px; }
+  @media (max-width: 820px) { .layout { grid-template-columns: 1fr; } nav.side { position: static !important; display: flex; flex-wrap: wrap; gap: 4px; } }
+  nav.side { position: sticky; top: 76px; align-self: start; }
+  nav.side a { display: block; padding: 8px 12px; border-radius: 8px; color: var(--ink); text-decoration: none; font-size: 13.5px; }
+  nav.side a:hover { background: #e6ebf3; }
+  section.card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 18px; margin-bottom: 16px; scroll-margin-top: 80px; }
+  section h2 { margin: 0 0 4px; font-size: 16px; } section > p.hint { margin: 0 0 14px; color: var(--muted); font-size: 13px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px 16px; }
+  label.f { display: block; font-size: 12.5px; color: var(--muted); font-weight: 500; }
+  label.f input, label.f select, label.f textarea { display: block; width: 100%; margin-top: 4px; padding: 8px 10px; border: 1px solid #cfd7e4; border-radius: 8px; font: inherit; color: var(--ink); background: #fff; }
+  label.f textarea { min-height: 64px; resize: vertical; }
+  label.chk { display: flex; align-items: center; gap: 8px; font-size: 13.5px; }
+  .mod { display: flex; align-items: flex-start; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line); }
+  .mod:last-child { border: 0; }
+  .mod .t { flex: 1; } .mod .t b { font-size: 14px; } .mod .t div { color: var(--muted); font-size: 12.5px; }
+  .tag { font-size: 11px; padding: 2px 8px; border-radius: 99px; background: #eef2f8; color: #334155; font-weight: 500; white-space: nowrap; }
+  .tag.ok { background: #e7f6ec; color: var(--ok); } .tag.warn { background: #fdf3e2; color: var(--warn); } .tag.info { background: #e6efff; color: #1d4ed8; }
+  .switch { position: relative; width: 42px; height: 24px; flex: none; }
+  .switch input { opacity: 0; width: 0; height: 0; }
+  .switch span { position: absolute; inset: 0; background: #cbd5e1; border-radius: 99px; transition: .2s; cursor: pointer; }
+  .switch span::before { content: ''; position: absolute; width: 18px; height: 18px; left: 3px; top: 3px; background: #fff; border-radius: 50%; transition: .2s; }
+  .switch input:checked + span { background: #16a34a; } .switch input:checked + span::before { transform: translateX(18px); }
+  .switch input:disabled + span { opacity: .45; cursor: not-allowed; }
+  .vt { border: 1px solid var(--line); border-radius: 10px; padding: 14px; margin-bottom: 12px; background: #fafbfd; }
+  .vt h3 { margin: 0 0 10px; font-size: 14px; display: flex; justify-content: space-between; align-items: center; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { text-align: left; color: var(--muted); font-weight: 500; padding: 6px; border-bottom: 1px solid var(--line); }
+  td { padding: 6px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+  td input, td select { width: 100%; padding: 6px 8px; border: 1px solid #cfd7e4; border-radius: 6px; font: inherit; }
+  .btn { font: inherit; font-size: 13px; padding: 7px 12px; border-radius: 8px; border: 1px solid #cfd7e4; background: #fff; cursor: pointer; }
+  .btn.primary { background: var(--brand); color: #fff; border-color: var(--brand); }
+  .btn.danger { color: #b91c1c; border-color: #f3b4b4; }
+  .quote { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-top: 14px; }
+  .quote div { background: #f6f8fc; border-radius: 10px; padding: 10px 12px; } .quote span { color: var(--muted); font-size: 12px; } .quote b { display: block; font-size: 17px; }
+  .matrix th, .matrix td { text-align: center; } .matrix td:first-child, .matrix th:first-child { text-align: left; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+</style>
+</head>
+<body>
+<header>
+  <div class="mark" id="mark">FF</div>
+  <div><h1>Admin Console</h1><small id="org"></small></div>
+  <div class="sp"></div>
+  <span id="saved">✓ Saved</span>
+  <a href="demo.html">Live demo</a><a href="admin.html">Dashboard</a><a href="pricing.html">Pricing page</a>
+</header>
+<div class="layout">
+  <nav class="side">
+    <a href="#company">Company &amp; branding</a>
+    <a href="#subscription">Plan &amp; billing</a>
+    <a href="#modules">Modules</a>
+    <a href="#tracking">Tracking &amp; attendance rules</a>
+    <a href="#visits">Visit types &amp; forms</a>
+    <a href="#money">Collections &amp; expenses</a>
+    <a href="#plans">Pricing plans (vendor)</a>
+    <a href="#data">Backup &amp; reset</a>
+  </nav>
+  <main id="main"></main>
+</div>
+<script src="js/config.js"></script>
+<script src="js/settings.js"></script>
+</body>
+</html>

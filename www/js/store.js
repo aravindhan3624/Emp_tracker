@@ -8,22 +8,20 @@
     return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
   }
   function blank() {
-    return { date: todayStr(), attendance: {}, track: {}, visits: {}, collections: [], audit: [], status: {} };
+    return { date: todayStr(), attendance: {}, track: {}, visits: {}, collections: [], expenses: [], audit: [], status: {} };
   }
   function load() {
     try {
       var s = JSON.parse(localStorage.getItem(KEY));
-      if (s && s.date === todayStr()) return s;
+      if (s && s.date === todayStr()) { s.expenses = s.expenses || []; return s; }
     } catch (e) {}
     return blank();
   }
 
-  var TYPE_LABEL = { COLLECTION: 'EMI Collection', ADDRESS: 'Address Verification', DOCUMENT: 'Document Verification', NEWLOAN: 'New Loan Verification' };
-
   var FF = {
     KEY: KEY,
-    GEOFENCE: (window.SEED && SEED.org.geofenceMeters) || 150,
-    TYPE_LABEL: TYPE_LABEL,
+    get GEOFENCE() { return Number(CONFIG.cfg.tracking.geofenceM) || 150; },
+    typeLabel: function (id) { return CONFIG.visitType(id).label; },
     state: load(),
     reload: function () { this.state = load(); return this.state; },
     save: function () { try { localStorage.setItem(KEY, JSON.stringify(this.state)); } catch (e) {} },

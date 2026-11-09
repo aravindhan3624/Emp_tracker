@@ -11,8 +11,9 @@
   function todayAt(h, m) { var d = new Date(); d.setHours(h, m, 0, 0); return d.getTime(); }
   function jit(n) { return (Math.random() - .5) * n; }
   function outcomeFor(v, i) {
-    if (v.type !== 'COLLECTION') return { outcome: 'VERIFIED', amount: 0 };
-    return [{ outcome: 'PAID', amount: v.due, mode: 'UPI' }, { outcome: 'PARTIAL', amount: Math.round(v.due / 2), mode: 'Cash' }, { outcome: 'PTP', amount: 0 }][i % 3];
+    var oc = CONFIG.visitType(v.type).outcomes;
+    if (v.type !== 'COLLECTION') return { outcome: oc[0], amount: 0 };
+    return [{ outcome: oc[0], amount: v.due, mode: 'UPI' }, { outcome: oc[1] || oc[0], amount: Math.round(v.due / 2), mode: 'Cash' }, { outcome: oc[2] || oc[0], amount: 0 }][i % 3];
   }
   function botComplete(bot, v, i, t) {
     var o = outcomeFor(v, i);
@@ -23,7 +24,8 @@
   function makeBot(id, cfg) {
     var emp = FF.emp(id), b = FF.branch(emp.branch), now = Date.now();
     var tIn = Math.min(todayAt(cfg.inAt[0], cfg.inAt[1]), now - 45 * 60000);
-    var bot = { id: id, bot: true, att: { in: { t: tIn, lat: b.lat + .0002, lng: b.lng - .0002 } }, track: [{ lat: b.lat, lng: b.lng, t: tIn }], collections: [], idx: cfg.done, dwell: 0, gpsOff: !!cfg.gpsOff,
+    var bot = { id: id, bot: true, att: { in: { t: tIn, lat: b.lat + .0002, lng: b.lng - .0002, late: cfg.inAt[0] * 60 + cfg.inAt[1] > 570 } }, track: [{ lat: b.lat, lng: b.lng, t: tIn }], collections: [], idx: cfg.done, dwell: 0, gpsOff: !!cfg.gpsOff,
+      expenses: [{ id: 'EXP-' + id.slice(3) + '01', emp: id, cat: 'Fuel', amount: 180 + Number(id.slice(-1)) * 40, note: 'Two-wheeler fuel', t: tIn + 3600000, status: 'Pending' }],
       visits: SEED.visits.filter(function (v) { return v.emp === id; }).map(function (v) { return Object.assign({}, v, { status: 'pending' }); }) };
     botEvents.push({ t: tIn, emp: id, action: 'CHECK_IN', detail: b.name });
     var end = now - (cfg.gpsOff ? 7 : 1) * 60000, legT = (end - tIn) / Math.max(1, cfg.done), cur = { lat: b.lat, lng: b.lng }, t = tIn;
@@ -69,13 +71,15 @@
       var real = S.attendance[e.id];
       var src = real || !bots[e.id] ? {
         att: real, track: S.track[e.id] || [], status: S.status[e.id], visits: FF.visitsFor(e.id),
-        collections: S.collections.filter(function (c) { return c.emp === e.id; })
+        collections: S.collections.filter(function (c) { return c.emp === e.id; }),
+        expenses: (S.expenses || []).filter(function (x) { return x.emp === e.id; })
       } : bots[e.id];
       var tr = src.track || [], pos = src.pos || tr[tr.length - 1];
       var onDuty = !!(src.att && src.att.in && !src.att.out);
-      var stale = onDuty && (!src.status || src.status.gps !== 'ok' || Date.now() - src.status.last > 3 * 60000);
+      var staleMs = (Number(CONFIG.cfg.tracking.staleAlertMin) || 3) * 60000;
+      var stale = onDuty && CONFIG.on('liveTracking') && (!src.status || src.status.gps !== 'ok' || Date.now() - src.status.last > staleMs);
       var done = src.visits.filter(function (v) { return v.status === 'completed'; });
-      return { e: e, b: FF.branch(e.branch), att: src.att, track: tr, pos: pos, status: src.status || {}, visits: src.visits, collections: src.collections,
+      return { e: e, b: FF.branch(e.branch), att: src.att, track: tr, pos: pos, status: src.status || {}, visits: CONFIG.on('visits') ? src.visits : [], collections: CONFIG.on('collections') ? src.collections : [], expenses: src.expenses || [], bot: !!src.bot,
         onDuty: onDuty, stale: stale, done: done.length, coll: src.collections.reduce(function (s, c) { return s + c.amount; }, 0), target: FF.target(e.id), km: FF.pathKm(tr) };
     });
   }
@@ -103,7 +107,7 @@
       var sel = selected === p.e.id, dim = selected && !sel;
       p.visits.forEach(function (v) {
         L.marker([v.lat, v.lng], { icon: L.divIcon({ className: '', html: '<div class="vpin" style="background:' + vColor(v) + ';outline:2px solid ' + p.e.color + '55"></div>', iconSize: [12, 12], iconAnchor: [6, 6] }), opacity: dim ? .35 : 1 })
-          .bindTooltip('<b>' + esc(v.customer) + '</b><br>' + FF.TYPE_LABEL[v.type] + ' · ' + p.e.name + '<br>' + v.status.replace('_', ' ') + (v.amount ? ' · ' + FF.inr(v.amount) : '') + (v.flagged ? '<br>⚠ started ' + v.startDist + ' m from site' : '')).addTo(layer);
+          .bindTooltip('<b>' + esc(v.customer) + '</b><br>' + FF.typeLabel(v.type) + ' · ' + p.e.name + '<br>' + v.status.replace('_', ' ') + (v.amount ? ' · ' + FF.inr(v.amount) : '') + (v.flagged ? '<br>⚠ started ' + v.startDist + ' m from site' : '')).addTo(layer);
         all.push([v.lat, v.lng]);
       });
       if (p.track.length > 1) L.polyline(p.track.map(function (t) { return [t.lat, t.lng]; }), { color: p.e.color, weight: sel ? 5 : 3, opacity: dim ? .2 : sel ? .9 : .55 }).addTo(layer);
@@ -133,19 +137,26 @@
     var coll = P.reduce(function (s, p) { return s + p.coll; }, 0), tgt = P.reduce(function (s, p) { return s + p.target; }, 0);
     var flagged = P.reduce(function (s, p) { return s + p.visits.filter(function (v) { return v.flagged; }).length; }, 0);
     var km = P.reduce(function (s, p) { return s + p.km; }, 0);
-    var k = [['Total employees', P.length, SEED.branches.length + ' branches'], ['Present', present, (P.length - present) + ' absent'], ['On duty now', onDuty, 'live tracking'],
-      ['Visits completed', vd + ' / ' + vt, Math.round(vd / Math.max(1, vt) * 100) + '% done'], ['Collected today', FF.inr(coll), Math.round(coll / Math.max(1, tgt) * 100) + '% of ' + FF.inr(tgt)],
-      ['Distance travelled', km.toFixed(1) + ' km', 'all employees'], ['Flagged visits', flagged, 'outside geofence']];
+    var late = P.filter(function (p) { return p.att && p.att.in.late; }).length;
+    var pendExp = P.reduce(function (s, p) { return s + p.expenses.filter(function (x) { return x.status === 'Pending'; }).length; }, 0);
+    var k = [['Total employees', P.length, SEED.branches.length + ' branches'], ['Present', present, (P.length - present) + ' absent · ' + late + ' late'], ['On duty now', onDuty, CONFIG.on('liveTracking') ? 'live tracking' : 'attendance only']];
+    if (CONFIG.on('visits')) k.push(['Visits completed', vd + ' / ' + vt, Math.round(vd / Math.max(1, vt) * 100) + '% done']);
+    if (CONFIG.on('collections')) k.push(['Collected today', FF.inr(coll), Math.round(coll / Math.max(1, tgt) * 100) + '% of ' + FF.inr(tgt)]);
+    if (CONFIG.on('liveTracking')) k.push(['Distance travelled', km.toFixed(1) + ' km', 'all employees']);
+    if (CONFIG.on('visits')) k.push(['Flagged visits', flagged, 'outside ' + FF.GEOFENCE + ' m geofence']);
+    if (CONFIG.on('expenses')) k.push(['Expense claims', pendExp, 'awaiting approval']);
     $('#kpis').innerHTML = k.map(function (x) { return '<div class="kpi"><span>' + x[0] + '</span><b>' + x[1] + '</b><small>' + x[2] + '</small></div>'; }).join('');
   }
   function drawAlerts(P) {
-    var a = [], late = Date.now() > todayAt(9, 30);
+    var a = [], tk = CONFIG.cfg.tracking, la =String(tk.lateAfter).split(':'), late = Date.now() > todayAt(Number(la[0]), Number(la[1]));
+    if (!CONFIG.on('alerts')) { $('#alertCount').textContent = '–'; $('#alerts').innerHTML = '<p style="color:var(--muted)">Smart alerts are not included in the current plan.</p>'; return; }
     P.forEach(function (p) {
       var n = '<b>' + p.e.name + '</b> ';
       if (!p.att) a.push({ lv: late ? 'bad' : 'info', m: n + (late ? 'has not checked in (absent)' : 'not checked in yet') });
+      else if (p.att.in.late) a.push({ lv: 'warn', m: n + 'checked in late at ' + FF.fmtTime(p.att.in.t) + ' (after ' + tk.lateAfter + ')' });
       if (p.onDuty && (p.status.gps === 'off' || p.status.gps === 'denied')) a.push({ lv: 'bad', m: n + 'GPS ' + (p.status.gps === 'denied' ? 'permission denied' : 'turned off') + ' since ' + FF.fmtTime(p.status.last) });
       else if (p.stale) a.push({ lv: 'warn', m: n + 'no location update for ' + FF.ago(p.status.last).replace(' ago', '') });
-      if (p.att && p.att.in && FF.dist(p.att.in, p.b) > 500) a.push({ lv: 'warn', m: n + 'checked in ' + FF.fmtDist(FF.dist(p.att.in, p.b)) + ' away from branch' });
+      if (p.att && p.att.in && FF.dist(p.att.in, p.b) > (Number(tk.branchRadiusM) || 500)) a.push({ lv: 'warn', m: n + 'checked in ' + FF.fmtDist(FF.dist(p.att.in, p.b)) + ' away from branch' });
       p.visits.filter(function (v) { return v.flagged; }).forEach(function (v) { a.push({ lv: 'warn', m: n + 'started visit to ' + esc(v.customer) + ' <b>' + FF.fmtDist(v.startDist) + '</b> outside geofence' }); });
     });
     var rank = { bad: 0, warn: 1, info: 2 }; a.sort(function (x, y) { return rank[x.lv] - rank[y.lv]; });
@@ -170,20 +181,35 @@
       return { id: p.e.id, c: [empCell(p.e), C(p.b.name), C(st[0], tag(st[1], st[0])), C(FF.fmtTime(p.att && p.att.in.t)), C(p.onDuty ? FF.ago(p.status.last) : '—'), C(gps[0], gps[0] === '—' ? '—' : tag(gps[1], gps[0])),
         C(p.km.toFixed(1) + ' km'), C(p.done + '/' + p.visits.length), C(FF.inr(p.coll) + ' / ' + FF.inr(p.target), '<span class="mini"><i style="width:' + Math.min(100, pct) + '%"></i></span>' + FF.inr(p.coll) + ' <span style="color:var(--muted)">/ ' + FF.inr(p.target) + '</span>')] };
     }) };
-    if (tab === 'att') return { head: ['Employee', 'Branch', 'Date', 'Check-in', 'Check-in location', 'Check-out', 'Hours', 'Status'], rows: P.map(function (p) {
-      var a = p.att, hrs = a ? ((a.out ? a.out.t : Date.now()) - a.in.t) / 3600000 : 0;
-      return { id: p.e.id, c: [empCell(p.e), C(p.b.name), C(FF.state.date), C(FF.fmtTime(a && a.in.t)), C(a ? FF.fmtDist(FF.dist(a.in, p.b)) + ' from branch' : '—'), C(FF.fmtTime(a && a.out && a.out.t)), C(a ? hrs.toFixed(1) + ' h' : '—'),
-        C(!a ? 'Absent' : a.out ? 'Present' : 'Present (on duty)', tag(!a ? 'bad' : 'ok', !a ? 'Absent' : a.out ? 'Present' : 'Present · on duty'))] };
+    if (tab === 'att') return { head: ['Employee', 'Selfie', 'Branch', 'Date', 'Check-in', 'Check-in location', 'Check-out', 'Hours', 'Status'], rows: P.map(function (p) {
+      var a = p.att, hrs = a ? ((a.out ? a.out.t : Date.now()) - a.in.t) / 3600000 : 0, sf = a && a.in.selfie;
+      var stTxt = !a ? 'Absent' : (a.in.late ? 'Late' : 'Present') + (a.out ? '' : ' · on duty');
+      return { id: p.e.id, c: [empCell(p.e), C(sf ? 'Yes' : '—', sf ? '<img src="' + sf + '" alt="selfie" style="width:30px;height:30px;border-radius:50%;object-fit:cover;vertical-align:middle">' : '—'), C(p.b.name), C(FF.state.date), C(FF.fmtTime(a && a.in.t)), C(a ? FF.fmtDist(FF.dist(a.in, p.b)) + ' from branch' : '—'), C(FF.fmtTime(a && a.out && a.out.t)), C(a ? hrs.toFixed(1) + ' h' : '—'),
+        C(stTxt, tag(!a ? 'bad' : a.in.late ? 'warn' : 'ok', stTxt))] };
     }) };
+    if (tab === 'exp') {
+      var ex = [], rate = Number(CONFIG.cfg.expenses.perKmRate) || 0;
+      P.forEach(function (p) {
+        if (p.km > 0) ex.push({ id: p.e.id, t: 0, c: [C('TA-' + p.e.id), C('—'), empCell(p.e), C('Travel allowance (auto)'), C(p.km.toFixed(1) + ' km × ' + FF.inr(rate)), C(FF.inr(p.km * rate)), C('Auto', tag('info', 'Auto')), C('')] });
+        p.expenses.forEach(function (x) {
+          var cls = x.status === 'Approved' ? 'ok' : x.status === 'Rejected' ? 'bad' : 'warn';
+          var act = x.status === 'Pending' ? '<button class="btn" data-exp="' + x.id + '" data-emp-id="' + p.e.id + '" data-act="Approved">Approve</button> <button class="btn" data-exp="' + x.id + '" data-emp-id="' + p.e.id + '" data-act="Rejected">Reject</button>' : '';
+          ex.push({ id: p.e.id, t: x.t, c: [C(x.id), C(FF.fmtTime(x.t)), empCell(p.e), C(x.cat), C(x.note), C(FF.inr(x.amount)), C(x.status, tag(cls, x.status)), C('', act)] });
+        });
+      });
+      ex.sort(function (a, b) { return b.t - a.t; });
+      return { head: ['Claim', 'Time', 'Employee', 'Category', 'Description', 'Amount', 'Status', 'Action'], rows: ex };
+    }
     if (tab === 'vis') {
       var rows = [];
       P.forEach(function (p) { p.visits.forEach(function (v) {
         var st = v.status === 'completed' ? 'ok' : v.status === 'in_progress' ? 'info' : '';
-        rows.push({ id: p.e.id, t: v.completedAt || v.startedAt || 0, c: [empCell(p.e), C(v.customer), C(FF.TYPE_LABEL[v.type]), C(v.loan), C(v.status.replace('_', ' '), tag(st, v.status.replace('_', ' '))), C(FF.fmtTime(v.startedAt)),
-          C(v.startDist != null ? FF.fmtDist(v.startDist) : '—'), C(v.status === 'pending' ? '—' : v.flagged ? 'Flagged' : 'GPS verified', v.status === 'pending' ? '—' : tag(v.flagged ? 'warn' : 'ok', v.flagged ? '⚠ Flagged' : '✓ Verified')), C(v.outcome || '—'), C(v.amount ? FF.inr(v.amount) : '—')] });
+        rows.push({ id: p.e.id, t: v.completedAt || v.startedAt || 0, c: [empCell(p.e), C(v.customer), C(FF.typeLabel(v.type)), C(v.loan), C(v.status.replace('_', ' '), tag(st, v.status.replace('_', ' '))), C(FF.fmtTime(v.startedAt)),
+          C(v.startDist != null ? FF.fmtDist(v.startDist) : '—'), C(v.status === 'pending' ? '—' : v.flagged ? 'Flagged' : 'GPS verified', v.status === 'pending' ? '—' : tag(v.flagged ? 'warn' : 'ok', v.flagged ? '⚠ Flagged' : '✓ Verified')), C(v.outcome || '—'), C(v.amount ? FF.inr(v.amount) : '—'),
+          C(v.custom ? Object.keys(v.custom).map(function (k) { return k + ': ' + v.custom[k]; }).join('; ') : '')] });
       }); });
       rows.sort(function (a, b) { return b.t - a.t; });
-      return { head: ['Employee', 'Customer', 'Type', 'Loan / App', 'Status', 'Started', 'Distance at start', 'Verification', 'Outcome', 'Amount'], rows: rows };
+      return { head: ['Employee', 'Customer', 'Type', 'Loan / App', 'Status', 'Started', 'Distance at start', 'Verification', 'Outcome', 'Amount', 'Form details'], rows: rows };
     }
     if (tab === 'col') {
       var list = [], total = 0;
@@ -198,7 +224,17 @@
     var T = lastTable = tables(P);
     $('#table').innerHTML = '<table><thead><tr>' + T.head.map(function (h) { return '<th>' + h + '</th>'; }).join('') + '</tr></thead><tbody>' +
       (T.rows.length ? T.rows.map(function (r) { return '<tr data-emp="' + (r.id || '') + '" class="' + (r.id && r.id === selected ? 'sel' : '') + '">' + r.c.map(function (c) { return '<td>' + c.h + '</td>'; }).join('') + '</tr>'; }).join('') : '<tr><td colspan="' + T.head.length + '" style="color:var(--muted)">No records</td></tr>') + '</tbody></table>';
-    document.querySelectorAll('#table tr[data-emp]').forEach(function (tr) { if (tr.dataset.emp) tr.onclick = function () { select(tr.dataset.emp); }; });
+    document.querySelectorAll('#table tr[data-emp]').forEach(function (tr) { if (tr.dataset.emp) tr.onclick = function (ev) { if (ev.target.closest('[data-exp]')) return; select(tr.dataset.emp); }; });
+    document.querySelectorAll('#table [data-exp]').forEach(function (b) {
+      b.onclick = function () {
+        var id = b.dataset.exp, emp = b.dataset.empId, st = b.dataset.act, x;
+        FF.reload();
+        x = (FF.state.expenses || []).find(function (e) { return e.id === id; });
+        if (x) { x.status = st; FF.log(emp, 'EXPENSE_' + st.toUpperCase(), x.cat + ' · ' + FF.inr(x.amount)); FF.save(); }
+        else if (bots[emp]) { x = bots[emp].expenses.find(function (e) { return e.id === id; }); if (x) x.status = st; }
+        render();
+      };
+    });
   }
   $('#exportBtn').onclick = function () {
     if (!lastTable) return;
@@ -214,7 +250,19 @@
   SEED.branches.forEach(function (b) { var o = document.createElement('option'); o.value = b.id; o.textContent = b.name; $('#branchSel').appendChild(o); });
   $('#branchSel').onchange = function () { branchFilter = this.value; selected = null; fitted = false; render(); };
   $('#resetBtn').onclick = function () { if (!confirm("Reset today's demo data for all employees?")) return; FF.reset(); initBots(); selected = null; render(); };
-  $('#org').textContent = SEED.org.name + ' · Branch Manager view';
+  function applyConfig() {
+    var co = CONFIG.cfg.company, plan = CONFIG.plan();
+    CONFIG.applyBrand();
+    document.title = co.appName + ' · Manager Dashboard';
+    $('#appName').textContent = co.appName + ' · Manager Dashboard';
+    document.querySelector('header .mark').textContent = co.logoText;
+    $('#org').textContent = co.name + ' · Branch Manager view · ' + plan.name + ' plan';
+    var show = { emp: true, att: true, vis: CONFIG.on('visits'), col: CONFIG.on('collections'), exp: CONFIG.on('expenses'), aud: CONFIG.on('reports') };
+    document.querySelectorAll('#tabs [data-t]').forEach(function (b) { b.style.display = show[b.dataset.t] ? '' : 'none'; });
+    $('#exportBtn').style.display = CONFIG.on('reports') ? '' : 'none';
+    if (!show[tab]) { tab = 'emp'; document.querySelectorAll('#tabs [data-t]').forEach(function (x) { x.classList.toggle('active', x.dataset.t === 'emp'); }); }
+  }
+  applyConfig();
 
   function render() {
     var P = people();
@@ -223,5 +271,8 @@
   }
   initBots(); render();
   setInterval(function () { tickBots(); render(); }, 2500);
-  window.addEventListener('storage', function (e) { if (e.key === FF.KEY) render(); });
+  window.addEventListener('storage', function (e) {
+    if (e.key === CONFIG.CFG_KEY || e.key === CONFIG.PLANS_KEY) { CONFIG.reload(); applyConfig(); render(); }
+    else if (e.key === FF.KEY) render();
+  });
 })();
