@@ -5,8 +5,8 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "deploy": "wrangler deploy",
-    "preview": "wrangler dev"
+    "deploy": "powershell -ExecutionPolicy Bypass -File deploy-web.ps1",
+    "preview": "wrangler pages dev site"
   },
   "keywords": [],
   "author": "",
