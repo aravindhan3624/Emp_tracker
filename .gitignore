@@ -14,3 +14,12 @@ android/.idea/
 *.jks
 
 .claude/settings.local.json
+
+# Web deploy output
+site/
+.wrangler/
+
+.dev.vars*
+!.dev.vars.example
+.env*
+!.env.example
