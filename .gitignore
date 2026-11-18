@@ -23,3 +23,6 @@ site/
 !.dev.vars.example
 .env*
 !.env.example
+
+# Netlify local link folder
+.netlify/
