@@ -194,7 +194,7 @@
       var j = JSON.parse(t);
       if (!j.config || !j.pricing) throw new Error('Not a FieldForce 360 settings file');
       localStorage.setItem(CONFIG.CFG_KEY, JSON.stringify(j.config)); localStorage.setItem(CONFIG.PLANS_KEY, JSON.stringify(j.pricing));
-      CONFIG.reload(); saved(); render();
+      CONFIG.reload(); CONFIG.saveCfg(); saved(); render();
     }).catch(function (err) { alert('Import failed: ' + err.message); });
     el.value = '';
   }

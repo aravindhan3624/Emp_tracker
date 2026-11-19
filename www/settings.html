@@ -75,5 +75,24 @@
 </div>
 <script src="js/config.js"></script>
 <script src="js/settings.js"></script>
+<script src="js/seed.js"></script>
+<script src="js/store.js"></script>
+<script src="js/backend-config.js"></script>
+<script src="vendor/supabase.js"></script>
+<script src="js/cloud.js"></script>
+<script>
+  // Cloud mode: load this company's saved settings; every change is then saved to the database.
+  if (window.Cloud && Cloud.enabled) {
+    var note = document.createElement('div');
+    note.style.cssText = 'background:#fff7e6;border-bottom:1px solid #f5d38a;padding:8px 18px;font-size:13px';
+    note.textContent = 'Connecting to the cloud database…';
+    document.body.insertBefore(note, document.body.children[1]);
+    Cloud.bootConfig().then(function (r) {
+      if (r.ok && r.changed && !sessionStorage.getItem('ff360.cfgReloaded')) { sessionStorage.setItem('ff360.cfgReloaded', '1'); location.reload(); return; }
+      sessionStorage.removeItem('ff360.cfgReloaded');
+      note.textContent = r.msg; if (r.ok && r.admin) note.style.background = '#ecfdf3';
+    }).catch(function (e) { note.textContent = 'Cloud error: ' + (e.message || e); });
+  }
+</script>
 </body>
 </html>

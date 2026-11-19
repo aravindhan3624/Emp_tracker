@@ -56,9 +56,29 @@
   .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--muted); margin-top: 8px; }
   .legend span::before { content: ''; display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 5px; vertical-align: -1px; background: var(--c); }
   .btn { font: inherit; font-size: 12.5px; padding: 6px 10px; border-radius: 8px; border: 1px solid var(--line); background: #fff; cursor: pointer; }
+  #gate { position: fixed; inset: 0; z-index: 5000; background: linear-gradient(160deg, #0b1f44, #0b3b8c); display: grid; place-items: center; padding: 16px; }
+  #gate .box { background: #fff; border-radius: 14px; padding: 26px; width: min(380px, 100%); box-shadow: 0 20px 50px rgba(0,0,0,.3); }
+  #gate h2 { margin: 0 0 4px; font-size: 19px; } #gate p { margin: 0 0 16px; color: var(--muted); font-size: 13px; }
+  #gate label { display: block; font-size: 12.5px; font-weight: 600; margin: 12px 0 5px; }
+  #gate input { width: 100%; box-sizing: border-box; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; font: inherit; }
+  #gate button { width: 100%; margin-top: 16px; padding: 11px; border: 0; border-radius: 8px; background: #0b3b8c; color: #fff; font: inherit; font-weight: 600; cursor: pointer; }
+  #gate .err { color: #b91c1c; font-size: 13px; min-height: 18px; margin-top: 10px; }
+  .hidden { display: none !important; }
+  .sync { font-size: 12px; opacity: .85; }
 </style>
 </head>
 <body>
+<div id="gate" class="hidden">
+  <form class="box" id="gateForm" autocomplete="off">
+    <h2>Manager sign-in</h2>
+    <p>Use the email or mobile number your company registered for you. A one-time code will be sent.</p>
+    <label for="gateId">Email or mobile number</label>
+    <input id="gateId" placeholder="md@company.com or 98400 10001">
+    <div id="gateStep2" class="hidden"><label for="gateCode">One-time code</label><input id="gateCode" inputmode="numeric" autocomplete="one-time-code" maxlength="8" placeholder="6-digit code"></div>
+    <button type="submit" id="gateBtn">Send code</button>
+    <div class="err" id="gateErr"></div>
+  </form>
+</div>
 <header>
   <div class="mark">FF</div>
   <div><h1 id="appName">FieldForce 360 · Manager Dashboard</h1><small id="org"></small></div>
@@ -66,7 +86,9 @@
   <span class="live"><i></i> Live · <span id="clock"></span></span>
   <select id="branchSel"><option value="">All branches</option></select>
   <a href="settings.html" target="_top" style="color:#fff;font-size:13px">⚙ Admin console</a><a href="pricing.html" target="_top" style="color:#fff;font-size:13px">Pricing</a>
+  <span class="sync hidden" id="syncInfo"></span>
   <button id="resetBtn" title="Clear today's demo data">Reset demo</button>
+  <button id="signOutBtn" class="hidden">Sign out</button>
 </header>
 <div class="wrap">
   <div class="kpis" id="kpis"></div>
@@ -93,6 +115,9 @@
 <script src="js/config.js"></script>
 <script src="js/seed.js"></script>
 <script src="js/store.js"></script>
+<script src="js/backend-config.js"></script>
+<script src="vendor/supabase.js"></script>
+<script src="js/cloud.js"></script>
 <script src="js/admin.js"></script>
 </body>
 </html>

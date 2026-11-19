@@ -6,7 +6,8 @@
 
   // ---------- Simulated colleagues (stand-in for other employees' phones) ----------
   // Real employees (anyone who signs in on the mobile app) always take precedence.
-  var BOT_CFG = { EMP002: { inAt: [9, 12], done: 1 }, EMP003: { inAt: [9, 4], done: 2, flag: 'V302' }, EMP004: { inAt: [9, 41], done: 1, gpsOff: true } };
+  var CLOUD = !!(window.Cloud && Cloud.enabled);
+  var BOT_CFG = CLOUD ? {} : { EMP002: { inAt: [9, 12], done: 1 }, EMP003: { inAt: [9, 4], done: 2, flag: 'V302' }, EMP004: { inAt: [9, 41], done: 1, gpsOff: true } };
   var bots = {}, botEvents = [];
   function todayAt(h, m) { var d = new Date(); d.setHours(h, m, 0, 0); return d.getTime(); }
   function jit(n) { return (Math.random() - .5) * n; }
@@ -247,30 +248,73 @@
 
   // ---------- Wiring ----------
   document.querySelectorAll('#tabs [data-t]').forEach(function (b) { b.onclick = function () { tab = b.dataset.t; document.querySelectorAll('#tabs [data-t]').forEach(function (x) { x.classList.toggle('active', x === b); }); render(); }; });
-  SEED.branches.forEach(function (b) { var o = document.createElement('option'); o.value = b.id; o.textContent = b.name; $('#branchSel').appendChild(o); });
+  function fillBranches() {
+    $('#branchSel').innerHTML = '<option value="">All branches</option>';
+    SEED.branches.forEach(function (b) { var o = document.createElement('option'); o.value = b.id; o.textContent = b.name; $('#branchSel').appendChild(o); });
+  }
   $('#branchSel').onchange = function () { branchFilter = this.value; selected = null; fitted = false; render(); };
-  $('#resetBtn').onclick = function () { if (!confirm("Reset today's demo data for all employees?")) return; FF.reset(); initBots(); selected = null; render(); };
+  $('#resetBtn').onclick = async function () {
+    if (!confirm("Reset today's demo data for all employees?" + (CLOUD ? ' This deletes today’s attendance, GPS, receipts and claims in the database and re-schedules all demo visits for today.' : ''))) return;
+    try { await FF.reset(); } catch (e) { alert(e.message || e); }
+    initBots(); selected = null; render();
+  };
   function applyConfig() {
     var co = CONFIG.cfg.company, plan = CONFIG.plan();
     CONFIG.applyBrand();
     document.title = co.appName + ' · Manager Dashboard';
     $('#appName').textContent = co.appName + ' · Manager Dashboard';
     document.querySelector('header .mark').textContent = co.logoText;
-    $('#org').textContent = co.name + ' · Branch Manager view · ' + plan.name + ' plan';
+    var who = CLOUD && Cloud.profile() ? Cloud.profile().name : 'Branch Manager view';
+    $('#org').textContent = co.name + ' · ' + who + ' · ' + plan.name + ' plan';
     var show = { emp: true, att: true, vis: CONFIG.on('visits'), col: CONFIG.on('collections'), exp: CONFIG.on('expenses'), aud: CONFIG.on('reports') };
     document.querySelectorAll('#tabs [data-t]').forEach(function (b) { b.style.display = show[b.dataset.t] ? '' : 'none'; });
     $('#exportBtn').style.display = CONFIG.on('reports') ? '' : 'none';
     if (!show[tab]) { tab = 'emp'; document.querySelectorAll('#tabs [data-t]').forEach(function (x) { x.classList.toggle('active', x.dataset.t === 'emp'); }); }
   }
-  applyConfig();
 
   function render() {
     var P = people();
     $('#clock').textContent = new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
     drawKpis(P); drawMap(P); drawAlerts(P); drawTable(P);
   }
-  initBots(); render();
-  setInterval(function () { tickBots(); render(); }, 2500);
+  function start() {
+    fillBranches(); applyConfig(); initBots(); fitted = false; render();
+    setInterval(function () { tickBots(); render(); }, CLOUD ? 5000 : 2500);
+  }
+
+  // ---------- Cloud mode: manager sign-in, live data from the database ----------
+  if (!CLOUD) start();
+  else {
+    var sent = false, started = false;
+    var boot = async function () {
+      await Cloud.boot({ requireManager: true });
+      $('#gate').classList.add('hidden');
+      $('#signOutBtn').classList.remove('hidden'); $('#syncInfo').classList.remove('hidden');
+      $('#resetBtn').textContent = 'Reset demo day';
+      if (!started) { started = true; start(); } else { fillBranches(); applyConfig(); render(); }
+    };
+    var showGate = function (msg) { $('#gate').classList.remove('hidden'); $('#gateErr').textContent = msg || ''; };
+    $('#gateForm').onsubmit = async function (e) {
+      e.preventDefault();
+      var id = $('#gateId').value.trim(), btn = $('#gateBtn'); $('#gateErr').textContent = ''; btn.disabled = true;
+      try {
+        if (!sent) {
+          await Cloud.sendOtp(id); sent = true;
+          $('#gateStep2').classList.remove('hidden'); $('#gateId').readOnly = true; btn.textContent = 'Verify & sign in';
+          $('#gateErr').style.color = '#15803d';
+          $('#gateErr').textContent = Cloud.isEmail(id) ? 'Code sent — check your email (you can also click the link in it).' : 'OTP sent by SMS.';
+        } else { await Cloud.verifyOtp(id, $('#gateCode').value); $('#gateErr').style.color = ''; await boot(); }
+      } catch (err) { $('#gateErr').style.color = ''; $('#gateErr').textContent = Cloud.errMsg(err); }
+      btn.disabled = false;
+    };
+    $('#signOutBtn').onclick = async function () { await Cloud.signOut(); location.reload(); };
+    window.addEventListener('ff-cloud', function () {
+      var st = Cloud.status;
+      $('#syncInfo').textContent = (st.realtime === 'SUBSCRIBED' ? '● Live database' : '○ Connecting…') + (st.lastSync ? ' · synced ' + FF.ago(st.lastSync) : '');
+      if (started) render();
+    });
+    Cloud.hasSession().then(function (has) { if (has) return boot(); showGate(); }).catch(function (err) { showGate(err.message || String(err)); });
+  }
   window.addEventListener('storage', function (e) {
     if (e.key === CONFIG.CFG_KEY || e.key === CONFIG.PLANS_KEY) { CONFIG.reload(); applyConfig(); render(); }
     else if (e.key === FF.KEY) render();

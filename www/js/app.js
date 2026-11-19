@@ -8,7 +8,8 @@
 
   function pref(k, d) { try { return localStorage.getItem('ff360.' + k) || d; } catch (e) { return d; } }
   function setPref(k, v) { try { localStorage.setItem('ff360.' + k, v); } catch (e) {} }
-  var gpsMode = pref('gpsMode', 'sim'); // 'sim' (demo route) | 'device' (real GPS)
+  var CLOUD = !!(window.Cloud && Cloud.enabled);
+  var gpsMode = pref('gpsMode', CLOUD ? 'device' : 'sim'); // 'sim' (demo route) | 'device' (real GPS)
 
   function toast(msg) {
     var t = $('#toast'); t.textContent = msg; t.classList.add('show');
@@ -49,6 +50,40 @@
     enter(emp);
   });
 
+  // ---------- Cloud login: mobile number + SMS OTP ----------
+  var otpSent = false;
+  if (CLOUD) {
+    $('#loginForm').classList.add('hidden'); $('#otpForm').classList.remove('hidden');
+    $('#loginHint').innerHTML = 'Sign in with the mobile number registered by your company. Location is collected <b>only while you are on duty</b> and is visible to your managers.';
+    $('#otpForm').addEventListener('submit', async function (e) {
+      e.preventDefault();
+      var id = $('#otpId').value.trim(), btn = $('#otpBtn'); $('#otpErr').textContent = '';
+      btn.disabled = true;
+      try {
+        if (!otpSent) {
+          await Cloud.sendOtp(id); otpSent = true;
+          $('#otpStep2').classList.remove('hidden'); $('#otpId').readOnly = true; btn.textContent = 'Verify & sign in';
+          $('#otpCode').focus(); toast(Cloud.isEmail(id) ? 'Code sent to your email' : 'OTP sent by SMS');
+        } else {
+          await Cloud.verifyOtp(id, $('#otpCode').value);
+          await cloudEnter();
+        }
+      } catch (err) { $('#otpErr').textContent = Cloud.errMsg(err); }
+      btn.disabled = false;
+    });
+  }
+  async function cloudEnter() {
+    var prof = await Cloud.boot();
+    applyConfig();
+    var emp = FF.emp(prof.emp_code);
+    if (!emp) throw new Error('Your employee record has no branch assigned. Contact your admin.');
+    FF.log(emp.id, 'LOGIN', 'Mobile app'); FF.save();
+    enter(emp);
+  }
+  function resetOtp() {
+    otpSent = false; $('#otpStep2').classList.add('hidden'); $('#otpId').readOnly = false; $('#otpCode').value = ''; $('#otpBtn').textContent = 'Send OTP';
+  }
+
   function enter(emp) {
     me = emp;
     $('#login').classList.add('hidden'); $('#shell').classList.remove('hidden');
@@ -62,6 +97,7 @@
   function logout() {
     if (onDuty()) { toast('End your duty before signing out'); return; }
     stopTracking(); setPref('session', ''); me = null; pos = null;
+    if (CLOUD) { Cloud.signOut(); resetOtp(); }
     $('#shell').classList.add('hidden'); $('#login').classList.remove('hidden');
     $('#pin').value = '';
   }
@@ -446,8 +482,15 @@
       '<div class="card"><h3>GPS source</h3><div class="seg"><button data-gps="sim" class="' + (gpsMode === 'sim' ? 'active' : '') + '">Demo route</button><button data-gps="device" class="' + (gpsMode === 'device' ? 'active' : '') + '">Device GPS</button></div>' +
       '<p class="muted" style="margin:8px 0 0">Demo route simulates movement towards your next ' + term('visit').toLowerCase() + '. Device GPS uses the phone\'s real location.</p></div>' +
       '<div class="card"><h3>Privacy notice</h3><div class="notice">Your location is recorded only between <b>Start Duty</b> and <b>End Duty</b>' + (tk.autoStopAtWorkEnd ? ' (automatically stopped at ' + tk.workEnd + ')' : '') + ', to verify attendance and ' + term('customer').toLowerCase() + ' visits. It is visible to your branch manager and retained for ' + tk.retentionDays + ' days as per company policy. You will always see the tracking status at the top of the app.</div></div>' +
-      '<div class="card"><button class="btn btn-ghost" id="resetDemo">Reset demo data</button><button class="btn btn-bad" id="logout">Sign out</button></div>';
+      (CLOUD ? '<div class="card"><h3>Cloud sync</h3><div class="muted">' + syncText() + '</div></div>' : '') +
+      '<div class="card">' + (CLOUD ? '' : '<button class="btn btn-ghost" id="resetDemo">Reset demo data</button>') + '<button class="btn btn-bad" id="logout">Sign out</button></div>';
     bind();
+  }
+
+  function syncText() {
+    var st = Cloud.status;
+    return (st.online ? '✅ Connected' : '⚠ Offline — changes are saved on the phone and will upload automatically') +
+      (st.lastSync ? ' · last sync ' + FF.ago(st.lastSync) : '') + (st.error && !st.online ? '<br><small>' + FF.esc(st.error) + '</small>' : '');
   }
 
   function render(full) {
@@ -499,6 +542,13 @@
   });
 
   applyConfig();
-  var saved = pref('session', '');
-  if (saved && FF.emp(saved)) enter(FF.emp(saved));
+  if (CLOUD) {
+    window.addEventListener('ff-cloud', function () { if (me) render(tab === 'profile'); });
+    Cloud.hasSession().then(function (has) {
+      if (has) return cloudEnter().catch(function (err) { $('#otpErr').textContent = Cloud.errMsg(err); });
+    });
+  } else {
+    var saved = pref('session', '');
+    if (saved && FF.emp(saved)) enter(FF.emp(saved));
+  }
 })();

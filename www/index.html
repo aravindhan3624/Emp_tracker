@@ -110,7 +110,17 @@
       <button class="btn btn-primary" type="submit">Sign in</button>
       <div class="err" id="loginErr"></div>
     </form>
-    <div class="hint">Demo: <b>EMP001</b> / PIN <b>1234</b>. Location is collected <b>only while you are on duty</b> and is visible to your branch manager.</div>
+    <form id="otpForm" autocomplete="off" class="hidden">
+      <label for="otpId">Registered mobile number</label>
+      <input id="otpId" type="tel" inputmode="tel" placeholder="e.g. 98400 10001">
+      <div id="otpStep2" class="hidden">
+        <label for="otpCode">OTP sent to your phone</label>
+        <input id="otpCode" inputmode="numeric" autocomplete="one-time-code" maxlength="8" placeholder="6-digit code">
+      </div>
+      <button class="btn btn-primary" type="submit" id="otpBtn">Send OTP</button>
+      <div class="err" id="otpErr"></div>
+    </form>
+    <div class="hint" id="loginHint">Demo: <b>EMP001</b> / PIN <b>1234</b>. Location is collected <b>only while you are on duty</b> and is visible to your branch manager.</div>
   </section>
 
   <!-- SHELL -->
@@ -155,6 +165,9 @@
 <script src="js/config.js"></script>
 <script src="js/seed.js"></script>
 <script src="js/store.js"></script>
+<script src="js/backend-config.js"></script>
+<script src="vendor/supabase.js"></script>
+<script src="js/cloud.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>
