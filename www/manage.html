@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FieldForce 360 · Manage</title>
+<meta name="theme-color" content="#0b3b8c">
+<link rel="stylesheet" href="vendor/leaflet.css">
+<style>
+  :root { --brand: #0b3b8c; --bg: #f2f4f8; --card: #fff; --ink: #142033; --muted: #5d6b82; --line: #e2e7ef; --ok: #15803d; --warn: #b45309; --bad: #b91c1c; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  header { background: var(--brand); color: #fff; padding: 12px 20px; display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+  header .mark { width: 34px; height: 34px; border-radius: 9px; background: #fff; color: var(--brand); font-weight: 800; display: grid; place-items: center; }
+  header h1 { font-size: 17px; margin: 0; } header small { opacity: .8; } header .sp { flex: 1; }
+  header a { color: #fff; font-size: 13px; }
+  .wrap { padding: 16px 20px 40px; max-width: 1400px; margin: 0 auto; }
+  .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); margin-bottom: 14px; flex-wrap: wrap; }
+  .tabs button { font: inherit; border: 0; background: none; padding: 10px 14px; cursor: pointer; color: var(--muted); border-bottom: 2px solid transparent; font-weight: 600; }
+  .tabs button.active { color: var(--brand); border-bottom-color: var(--brand); }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px; }
+  .bar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }
+  .bar .sp { flex: 1; }
+  input, select, textarea { font: inherit; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: #fff; color: var(--ink); }
+  .btn { font: inherit; font-size: 13px; padding: 8px 12px; border-radius: 8px; border: 1px solid var(--line); background: #fff; cursor: pointer; white-space: nowrap; }
+  .btn.primary { background: var(--brand); border-color: var(--brand); color: #fff; font-weight: 600; }
+  .btn.danger { color: var(--bad); }
+  .btn:disabled { opacity: .5; cursor: default; }
+  .tbl { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+  th { color: var(--muted); font-weight: 600; font-size: 12px; background: #f8fafc; position: sticky; top: 0; }
+  tr.off td { opacity: .5; }
+  .tag { display: inline-block; font-size: 11.5px; font-weight: 600; padding: 2px 8px; border-radius: 99px; background: #eef2f7; color: var(--muted); }
+  .tag.ok { background: #e7f6ec; color: var(--ok); } .tag.warn { background: #fdf3e2; color: var(--warn); } .tag.bad { background: #fdecec; color: var(--bad); } .tag.info { background: #e8f0fe; color: #1d4ed8; }
+  .av { display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; color: #fff; font-size: 10px; font-weight: 700; margin-right: 6px; vertical-align: middle; }
+  .muted { color: var(--muted); } .small { font-size: 12px; }
+  .notice { background: #fff7e6; border: 1px solid #f5d38a; padding: 14px 16px; border-radius: 10px; }
+  /* modal */
+  .ov { position: fixed; inset: 0; background: rgba(15,23,42,.45); display: grid; place-items: center; padding: 16px; z-index: 3000; }
+  .modal { background: #fff; border-radius: 14px; width: min(720px, 100%); max-height: calc(100vh - 32px); display: flex; flex-direction: column; box-shadow: 0 20px 50px rgba(0,0,0,.3); }
+  .modal h2 { margin: 0; padding: 16px 18px; font-size: 17px; border-bottom: 1px solid var(--line); }
+  .modal .body { padding: 14px 18px; overflow: auto; }
+  .modal .foot { padding: 12px 18px; border-top: 1px solid var(--line); display: flex; gap: 8px; justify-content: flex-end; align-items: center; }
+  .modal .foot .err { color: var(--bad); font-size: 13px; flex: 1; }
+  .fg { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px 14px; }
+  .fg label { display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; font-weight: 600; }
+  .fg label span.hint { font-weight: 400; color: var(--muted); font-size: 11.5px; }
+  .fg .full { grid-column: 1 / -1; }
+  .picker { height: 230px; border-radius: 10px; border: 1px solid var(--line); margin-top: 6px; }
+  .checklist { max-height: 300px; overflow: auto; border: 1px solid var(--line); border-radius: 10px; }
+  .checklist label { display: flex; gap: 10px; align-items: flex-start; padding: 8px 10px; border-bottom: 1px solid var(--line); font-weight: 400; cursor: pointer; flex-direction: row; }
+  .checklist label:last-child { border-bottom: 0; }
+  .loans td { padding: 4px; border: 0; } .loans input { width: 100%; }
+  #toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%) translateY(120px); background: #111827; color: #fff; padding: 10px 16px; border-radius: 10px; transition: transform .25s; z-index: 4000; max-width: 90vw; }
+  #toast.show { transform: translateX(-50%) translateY(0); }
+  .hidden { display: none !important; }
+  @media (max-width: 640px) { .wrap { padding: 12px 16px 30px; } header { padding: 10px 16px; } }
+</style>
+</head>
+<body>
+<header>
+  <div class="mark" id="mark">FF</div>
+  <div><h1 id="title">Manage data</h1><small id="org">Employees · customers · visit plan · branches</small></div>
+  <div class="sp"></div>
+  <a href="admin.html">← Manager dashboard</a><a href="settings.html">⚙ Admin console</a>
+</header>
+<div class="wrap">
+  <div id="gate" class="notice">Connecting to the cloud database…</div>
+  <div id="main" class="hidden">
+    <div class="tabs" id="tabs">
+      <button data-t="visits" class="active">Visit plan</button>
+      <button data-t="employees">Employees</button>
+      <button data-t="customers">Customers &amp; loans</button>
+      <button data-t="branches">Branches</button>
+    </div>
+    <div class="card"><div id="content"></div></div>
+  </div>
+</div>
+<div id="toast"></div>
+
+<script src="vendor/leaflet.js"></script>
+<script src="js/config.js"></script>
+<script src="js/seed.js"></script>
+<script src="js/store.js"></script>
+<script src="js/backend-config.js"></script>
+<script src="vendor/supabase.js"></script>
+<script src="js/cloud.js"></script>
+<script src="js/manage.js"></script>
+</body>
+</html>

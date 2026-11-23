@@ -256,9 +256,9 @@ create or replace function public.my_employee() returns uuid language sql stable
   $$ select id from employees where auth_user_id = auth.uid() and active $$;
 create or replace function public.my_role() returns text language sql stable security definer set search_path = public as
   $$ select role from employees where auth_user_id = auth.uid() and active $$;
-create or replace function public.is_manager() returns boolean language sql stable as
+create or replace function public.is_manager() returns boolean language sql stable set search_path = public as
   $$ select coalesce(public.my_role() in ('owner','admin','manager'), false) $$;
-create or replace function public.is_admin() returns boolean language sql stable as
+create or replace function public.is_admin() returns boolean language sql stable set search_path = public as
   $$ select coalesce(public.my_role() in ('owner','admin'), false) $$;
 
 -- Called by the app right after OTP sign-in: links the signed-in phone/email to the employee
@@ -298,22 +298,22 @@ create policy plans_read on public.plans for select using (true);              -
 create policy pricing_read on public.pricing_settings for select using (true);
 
 alter table public.tenants enable row level security;
-create policy tenant_read on public.tenants for select using (id = public.my_tenant());
-create policy tenant_admin_update on public.tenants for update using (id = public.my_tenant() and public.is_admin());
+create policy tenant_read on public.tenants for select using (id = (select public.my_tenant()));
+create policy tenant_admin_update on public.tenants for update using (id = (select public.my_tenant()) and (select public.is_admin()));
 
 alter table public.tenant_settings enable row level security;
-create policy settings_read on public.tenant_settings for select using (tenant_id = public.my_tenant());
+create policy settings_read on public.tenant_settings for select using (tenant_id = (select public.my_tenant()));
 create policy settings_admin_update on public.tenant_settings for update
-  using (tenant_id = public.my_tenant() and public.is_admin()) with check (tenant_id = public.my_tenant());
+  using (tenant_id = (select public.my_tenant()) and (select public.is_admin())) with check (tenant_id = (select public.my_tenant()));
 create policy settings_admin_insert on public.tenant_settings for insert
-  with check (tenant_id = public.my_tenant() and public.is_admin());
+  with check (tenant_id = (select public.my_tenant()) and (select public.is_admin()));
 
 -- Master data: everyone in the company reads, admins write.
 do $$ declare t text; begin
   foreach t in array array['visit_types','branches','employees','customers','loan_accounts'] loop
     execute format('alter table public.%I enable row level security', t);
-    execute format('create policy %1$s_read on public.%1$I for select using (tenant_id = public.my_tenant())', t);
-    execute format('create policy %1$s_admin on public.%1$I for all using (tenant_id = public.my_tenant() and public.is_admin()) with check (tenant_id = public.my_tenant())', t);
+    execute format('create policy %1$s_read on public.%1$I for select using (tenant_id = (select public.my_tenant()))', t);
+    execute format('create policy %1$s_admin on public.%1$I for all using (tenant_id = (select public.my_tenant()) and (select public.is_admin())) with check (tenant_id = (select public.my_tenant()))', t);
   end loop;
 end $$;
 
@@ -321,26 +321,26 @@ end $$;
 do $$ declare t text; begin
   foreach t in array array['attendance','employee_locations','employee_status','customer_visits','collection_transactions','expense_claims'] loop
     execute format('alter table public.%I enable row level security', t);
-    execute format('create policy %1$s_read on public.%1$I for select using (tenant_id = public.my_tenant() and (employee_id = public.my_employee() or public.is_manager()))', t);
-    execute format('create policy %1$s_insert on public.%1$I for insert with check (tenant_id = public.my_tenant() and employee_id = public.my_employee())', t);
+    execute format('create policy %1$s_read on public.%1$I for select using (tenant_id = (select public.my_tenant()) and (employee_id = (select public.my_employee()) or (select public.is_manager())))', t);
+    execute format('create policy %1$s_insert on public.%1$I for insert with check (tenant_id = (select public.my_tenant()) and employee_id = (select public.my_employee()))', t);
   end loop;
   -- Updates: own rows, or a manager (e.g. approving an expense). GPS points and receipts get no update policy.
   foreach t in array array['attendance','employee_status','customer_visits','expense_claims'] loop
-    execute format('create policy %1$s_update on public.%1$I for update using (tenant_id = public.my_tenant() and (employee_id = public.my_employee() or public.is_manager())) with check (tenant_id = public.my_tenant())', t);
+    execute format('create policy %1$s_update on public.%1$I for update using (tenant_id = (select public.my_tenant()) and (employee_id = (select public.my_employee()) or (select public.is_manager()))) with check (tenant_id = (select public.my_tenant()))', t);
   end loop;
 end $$;
 -- Managers assign visits to staff.
 create policy customer_visits_manager_insert on public.customer_visits for insert
-  with check (tenant_id = public.my_tenant() and public.is_manager());
+  with check (tenant_id = (select public.my_tenant()) and (select public.is_manager()));
 
 alter table public.audit_logs enable row level security;
 create policy audit_read on public.audit_logs for select
-  using (tenant_id = public.my_tenant() and (public.is_manager() or employee_id = public.my_employee()));
+  using (tenant_id = (select public.my_tenant()) and ((select public.is_manager()) or employee_id = (select public.my_employee())));
 create policy audit_insert on public.audit_logs for insert
-  with check (tenant_id = public.my_tenant() and actor_auth_id = auth.uid());
+  with check (tenant_id = (select public.my_tenant()) and actor_auth_id = (select auth.uid()));
 
 alter table public.change_log enable row level security;
-create policy change_log_read on public.change_log for select using (tenant_id = public.my_tenant() and public.is_manager());
+create policy change_log_read on public.change_log for select using (tenant_id = (select public.my_tenant()) and (select public.is_manager()));
 -- No insert/update/delete policies: only the trigger below (security definer) writes here.
 
 -- =====================================================================================
@@ -349,7 +349,7 @@ create policy change_log_read on public.change_log for select using (tenant_id =
 
 -- Location points may only be written while the employee is on duty (no off-duty tracking).
 -- Points recorded before check-out are accepted even if they arrive later (offline upload).
-create or replace function public.reject_off_duty_location() returns trigger language plpgsql as $$
+create or replace function public.reject_off_duty_location() returns trigger language plpgsql set search_path = public as $$
 begin
   if not exists (select 1 from attendance a
                   where a.employee_id = new.employee_id
@@ -363,7 +363,7 @@ create trigger employee_locations_on_duty before insert on public.employee_locat
   for each row execute function public.reject_off_duty_location();
 
 -- GPS history and money receipts are immutable (only the retention job / demo reset may delete).
-create or replace function public.forbid_change() returns trigger language plpgsql as $$
+create or replace function public.forbid_change() returns trigger language plpgsql set search_path = public as $$
 begin
   if current_setting('ff.allow_purge', true) = 'on' then return old; end if;
   raise exception '% rows are append-only and cannot be %d', tg_table_name, lower(tg_op);
@@ -374,7 +374,7 @@ create trigger collection_tx_immutable before update or delete on public.collect
   for each row execute function public.forbid_change();
 
 -- Expense decisions record who decided and when (cannot be spoofed by the client).
-create or replace function public.stamp_expense_decision() returns trigger language plpgsql as $$
+create or replace function public.stamp_expense_decision() returns trigger language plpgsql set search_path = public as $$
 begin
   if new.status is distinct from old.status then
     if not public.is_manager() then raise exception 'Only a manager can approve or reject claims'; end if;
@@ -406,7 +406,7 @@ do $$ declare t text; begin
   end loop;
 end $$;
 
-create or replace function public.touch_settings() returns trigger language plpgsql as $$
+create or replace function public.touch_settings() returns trigger language plpgsql set search_path = public as $$
 begin new.updated_at := now(); new.updated_by := auth.uid(); return new; end $$;
 create trigger tenant_settings_touch before insert or update on public.tenant_settings
   for each row execute function public.touch_settings();
@@ -454,12 +454,12 @@ values ('selfies', 'selfies', false, 204800, array['image/jpeg','image/png'])
 on conflict (id) do nothing;
 
 create policy selfies_upload on storage.objects for insert to authenticated
-  with check (bucket_id = 'selfies' and (storage.foldername(name))[1] = public.my_tenant()::text);
+  with check (bucket_id = 'selfies' and (storage.foldername(name))[1] = (select public.my_tenant())::text);
 create policy selfies_overwrite on storage.objects for update to authenticated
-  using (bucket_id = 'selfies' and (storage.foldername(name))[1] = public.my_tenant()::text);
+  using (bucket_id = 'selfies' and (storage.foldername(name))[1] = (select public.my_tenant())::text);
 create policy selfies_read on storage.objects for select to authenticated
-  using (bucket_id = 'selfies' and (storage.foldername(name))[1] = public.my_tenant()::text
-         and (public.is_manager() or name like '%/' || public.my_employee()::text || '.jpg'));
+  using (bucket_id = 'selfies' and (storage.foldername(name))[1] = (select public.my_tenant())::text
+         and ((select public.is_manager()) or name like '%/' || (select public.my_employee())::text || '.jpg'));
 
 -- =====================================================================================
 -- 9. Realtime: stream changes to the manager dashboard (RLS still applies)
@@ -467,3 +467,63 @@ create policy selfies_read on storage.objects for select to authenticated
 alter publication supabase_realtime add table
   public.employee_locations, public.employee_status, public.attendance, public.customer_visits,
   public.collection_transactions, public.expense_claims, public.audit_logs;
+
+-- =====================================================================================
+-- 10. Hardening (from Supabase security & performance advisors)
+-- =====================================================================================
+-- Helper functions: not callable by signed-out visitors; trigger function not callable at all.
+revoke execute on function public.my_tenant(), public.my_employee(), public.my_role() from public, anon;
+grant execute on function public.my_tenant(), public.my_employee(), public.my_role() to authenticated;
+revoke execute on function public.log_change() from public, anon, authenticated;
+
+-- One policy per action (avoids evaluating two permissive policies on every read).
+do $$ declare t text; begin
+  foreach t in array array['visit_types','branches','employees','customers','loan_accounts'] loop
+    execute format('drop policy %1$s_admin on public.%1$I', t);
+    execute format('create policy %1$s_admin_insert on public.%1$I for insert to authenticated with check (tenant_id = (select public.my_tenant()) and (select public.is_admin()))', t);
+    execute format('create policy %1$s_admin_update on public.%1$I for update to authenticated using (tenant_id = (select public.my_tenant()) and (select public.is_admin())) with check (tenant_id = (select public.my_tenant()))', t);
+    execute format('create policy %1$s_admin_delete on public.%1$I for delete to authenticated using (tenant_id = (select public.my_tenant()) and (select public.is_admin()))', t);
+  end loop;
+end $$;
+drop policy customer_visits_manager_insert on public.customer_visits;
+drop policy customer_visits_insert on public.customer_visits;
+create policy customer_visits_insert on public.customer_visits for insert to authenticated
+  with check (tenant_id = (select public.my_tenant()) and (employee_id = (select public.my_employee()) or (select public.is_manager())));
+
+-- Indexes for foreign keys (fast joins and cascades).
+create index if not exists attendance_tenant on public.attendance (tenant_id);
+create index if not exists audit_logs_employee on public.audit_logs (employee_id);
+create index if not exists collection_tx_employee on public.collection_transactions (employee_id);
+create index if not exists collection_tx_loan on public.collection_transactions (loan_account_id);
+create index if not exists collection_tx_visit on public.collection_transactions (visit_id);
+create index if not exists customer_visits_customer on public.customer_visits (customer_id);
+create index if not exists customer_visits_loan on public.customer_visits (loan_account_id);
+create index if not exists customer_visits_type on public.customer_visits (visit_type_id);
+create index if not exists customers_tenant on public.customers (tenant_id);
+create index if not exists employee_status_tenant on public.employee_status (tenant_id);
+create index if not exists employees_branch on public.employees (branch_id);
+create index if not exists expense_claims_decided_by on public.expense_claims (decided_by);
+create index if not exists expense_claims_employee on public.expense_claims (employee_id);
+create index if not exists loan_accounts_customer on public.loan_accounts (customer_id);
+create index if not exists tenants_plan on public.tenants (plan_id);
+
+-- =====================================================================================
+-- 11. API access grants (new Supabase projects do not expose tables automatically).
+--     Grants open a table to the API; Row Level Security above still decides which rows.
+-- =====================================================================================
+grant usage on schema public to anon, authenticated;
+grant select on public.plans, public.pricing_settings to anon, authenticated;
+grant select, insert, update, delete on
+  public.tenants, public.tenant_settings, public.branches, public.employees, public.visit_types,
+  public.customers, public.loan_accounts, public.attendance, public.employee_locations, public.employee_status,
+  public.customer_visits, public.collection_transactions, public.expense_claims, public.audit_logs
+  to authenticated;
+grant select on public.change_log to authenticated;
+grant usage, select on all sequences in schema public to authenticated;
+
+-- =====================================================================================
+-- 12. Data management from the Manage page
+-- =====================================================================================
+-- A phone number / email can belong to only one employee per company (OTP sign-in relies on it).
+create unique index if not exists employees_unique_phone on public.employees (tenant_id, (regexp_replace(phone, '\D', '', 'g'))) where phone is not null and phone <> '';
+create unique index if not exists employees_unique_email on public.employees (tenant_id, lower(email)) where email is not null and email <> '';

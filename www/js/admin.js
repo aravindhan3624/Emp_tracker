@@ -289,7 +289,7 @@
     var boot = async function () {
       await Cloud.boot({ requireManager: true });
       $('#gate').classList.add('hidden');
-      $('#signOutBtn').classList.remove('hidden'); $('#syncInfo').classList.remove('hidden');
+      $('#signOutBtn').classList.remove('hidden'); $('#manageLink').classList.remove('hidden'); $('#syncInfo').classList.remove('hidden');
       $('#resetBtn').textContent = 'Reset demo day';
       if (!started) { started = true; start(); } else { fillBranches(); applyConfig(); render(); }
     };

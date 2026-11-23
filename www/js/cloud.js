@@ -7,11 +7,12 @@
 //   * managers get live updates through Supabase Realtime.
 (function () {
   var cfg = window.FF_BACKEND || {};
-  var Cloud = window.Cloud = { enabled: !!(cfg.url && cfg.anonKey && window.supabase) };
+  var forceDemo = /[?&]demo=1(&|$)/.test(location.search);
+  var Cloud = window.Cloud = { enabled: !!(cfg.url && cfg.anonKey && window.supabase) && !forceDemo };
   if (!Cloud.enabled) return;
 
   // Employee app and manager pages keep separate sign-ins, so both can be open side by side (demo page).
-  var SCOPE = /admin|settings/i.test(location.pathname) ? 'manager' : 'app';
+  var SCOPE = /admin|settings|manage/i.test(location.pathname) ? 'manager' : 'app';
   var sb = Cloud.sb = supabase.createClient(cfg.url, cfg.anonKey, {
     auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true, storageKey: 'ff360.auth.' + SCOPE }
   });
@@ -130,7 +131,7 @@
   // Admin Console: load the company's saved configuration; edits are then saved to the database.
   Cloud.bootConfig = async function () {
     var u = (await sb.auth.getUser()).data.user;
-    if (!u) return { ok: false, msg: 'Sign in on the Manager dashboard first, then reopen the Admin console.' };
+    if (!u) return { ok: false, msg: 'Sign in on the Manager dashboard first, then reopen this page.' };
     uid = u.id;
     profile = chk(await sb.rpc('link_my_employee'));
     if (!profile) return { ok: false, msg: 'This login is not linked to an employee.' };
@@ -187,7 +188,7 @@
     var startVer = ver, date = today(), since = midnightIso();
     var vis = chk(await sb.from('customer_visits')
       .select('id,employee_id,status,sort,started_at,start_lat,start_lng,start_distance_m,flagged,completed_at,end_lat,end_lng,outcome,remarks,form_data,loan_account_id,customers(name,address,lat,lng),loan_accounts(loan_ref,emi_due,overdue_days),visit_types(code)')
-      .eq('scheduled_date', date).order('sort'));
+      .eq('scheduled_date', date).neq('status', 'cancelled').order('sort'));
     var att = chk(await sb.from('attendance').select('*').eq('work_date', date));
     var stat = chk(await sb.from('employee_status').select('*'));
     var col = chk(await sb.from('collection_transactions').select('id,visit_id,employee_id,loan_account_id,amount,mode,receipt_no,collected_at,lat,lng').gte('collected_at', since));

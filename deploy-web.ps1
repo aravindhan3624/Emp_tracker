@@ -18,7 +18,7 @@ Remove-Item (Join-Path $site 'vendor\*.map'), (Join-Path $site 'vendor\leaflet-s
 
 # The phone app lives at /app.html on the web (index.html stays the app inside the APK).
 Move-Item (Join-Path $site 'index.html') (Join-Path $site 'app.html')
-$demo = [IO.File]::ReadAllText((Join-Path $site 'demo.html'), [Text.Encoding]::UTF8) -replace 'src="index.html"', 'src="app.html"'
+$demo = [IO.File]::ReadAllText((Join-Path $site 'demo.html'), [Text.Encoding]::UTF8) -replace 'src="index.html', 'src="app.html'
 [IO.File]::WriteAllText((Join-Path $site 'demo.html'), $demo)
 [IO.File]::WriteAllText((Join-Path $site 'index.html'), $demo)
 
